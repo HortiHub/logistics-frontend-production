@@ -1,26 +1,26 @@
-# Frontend Dockerfile for Railway deployment
+# Simple Frontend Dockerfile that actually works
 FROM node:18-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files first (for better caching)
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production --silent
+# Install ALL dependencies (needed for React build)
+RUN npm install
 
-# Copy source code
+# Copy all source code
 COPY . .
 
-# Build the application
+# Build the React application
 RUN npm run build
 
-# Install serve to run the built app
+# Install serve globally for serving static files
 RUN npm install -g serve
 
-# Expose port
-EXPOSE 3000
+# Use dynamic port from Railway
+EXPOSE $PORT
 
-# Start the application
-CMD ["serve", "-s", "build", "-l", "3000"]
+# Start command
+CMD serve -s build -l $PORT
