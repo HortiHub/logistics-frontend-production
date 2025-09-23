@@ -1,43 +1,28 @@
 {
   "name": "logistics-frontend",
   "version": "1.0.0",
-  "description": "Frontend for logistics SaaS platform",
+  "description": "Logistics management platform frontend",
   "private": true,
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.11.1",
-    "socket.io-client": "^4.6.2",
-    "axios": "^1.4.0",
-    "react-hook-form": "^7.44.3",
-    "react-query": "^3.39.3",
-    "leaflet": "^1.9.4",
-    "react-leaflet": "^4.2.1",
-    "date-fns": "^2.30.0",
-    "react-hot-toast": "^2.4.1"
-  },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix"
+    "eject": "react-scripts eject"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.8.1",
+    "socket.io-client": "^4.6.1",
+    "react-scripts": "5.0.1"
   },
   "devDependencies": {
-    "react-scripts": "5.0.1",
-    "eslint": "^8.42.0",
-    "eslint-plugin-react": "^7.32.2",
-    "eslint-plugin-react-hooks": "^4.6.0",
-    "@testing-library/jest-dom": "^5.16.5",
+    "@testing-library/jest-dom": "^5.16.4",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+  "engines": {
+    "node": ">=16.0.0"
   },
   "browserslist": {
     "production": [
@@ -50,8 +35,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "proxy": "http://localhost:5000",
-  "engines": {
-    "node": ">=16.0.0"
   }
+}
