@@ -1,18 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import './App.css';
 
-// API configuration
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-const socket = io(API_BASE_URL);
+// API configuration - Fixed URL construction
+const API_BASE_URL = (process.env.REACT_APP_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
-// Context for authentication
-const AuthContext = React.createContext();
+console.log('API Base URL:', API_BASE_URL); // Debug line
 
 // API helper functions
 const api = {
   async request(endpoint, options = {}) {
     const token = localStorage.getItem('token');
+    
+    // Ensure endpoint starts with /
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    
+    // Construct URL properly
+    const url = `${API_BASE_URL}${cleanEndpoint}`;
+    
+    console.log('Making request to:', url); // Debug line
+    
     const config = {
       headers: {
         'Content-Type': 'application/json',
@@ -22,13 +28,19 @@ const api = {
       ...options,
     };
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    try {
+      const response = await fetch(url, config);
+      
+      if (!response.ok) {
+        console.error('API Error:', response.status, response.statusText);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Request failed:', error);
+      throw error;
     }
-    
-    return response.json();
   },
 
   async login(credentials) {
@@ -85,11 +97,15 @@ function Login({ onLogin }) {
     setError('');
 
     try {
+      console.log('Attempting login with:', credentials);
       const response = await api.login(credentials);
+      console.log('Login successful:', response);
+      
       localStorage.setItem('token', response.token);
       onLogin(response.user);
     } catch (err) {
-      setError('Invalid credentials');
+      console.error('Login error:', err);
+      setError('Invalid credentials or connection error');
     } finally {
       setLoading(false);
     }
@@ -111,6 +127,7 @@ function Login({ onLogin }) {
             <option value="pos_operator">POS Operator</option>
             <option value="admin">Admin</option>
             <option value="driver">Driver</option>
+            <option value="manager">Manager</option>
           </select>
         </div>
 
@@ -121,6 +138,7 @@ function Login({ onLogin }) {
             value={credentials.email}
             onChange={(e) => setCredentials({...credentials, email: e.target.value})}
             required
+            placeholder="admin@logistics.co"
           />
         </div>
 
@@ -131,12 +149,22 @@ function Login({ onLogin }) {
             value={credentials.password}
             onChange={(e) => setCredentials({...credentials, password: e.target.value})}
             required
+            placeholder="password123"
           />
         </div>
 
         <button type="submit" disabled={loading}>
           {loading ? 'Logging in...' : 'Login'}
         </button>
+        
+        <div className="demo-credentials">
+          <small>
+            Demo credentials:<br/>
+            admin@logistics.co / password123<br/>
+            pos1@logistics.co / password123<br/>
+            driver1@logistics.co / password123
+          </small>
+        </div>
       </form>
     </div>
   );
@@ -149,8 +177,6 @@ function POSInterface({ user }) {
     customer_phone: '',
     customer_email: '',
     delivery_address: '',
-    delivery_lat: null,
-    delivery_lng: null,
     special_instructions: '',
     items: []
   });
@@ -186,28 +212,14 @@ function POSInterface({ user }) {
     return order.items.reduce((total, item) => total + (item.quantity * item.unit_price), 0);
   };
 
-  const geocodeAddress = async (address) => {
-    // In production, use Google Maps Geocoding API
-    // For demo, return mock coordinates
-    return {
-      lat: 40.7128 + (Math.random() - 0.5) * 0.1,
-      lng: -74.0060 + (Math.random() - 0.5) * 0.1
-    };
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setSuccess('');
 
     try {
-      // Geocode address
-      const coordinates = await geocodeAddress(order.delivery_address);
-      
       const orderData = {
         ...order,
-        delivery_lat: coordinates.lat,
-        delivery_lng: coordinates.lng,
         total_amount: calculateTotal()
       };
 
@@ -219,13 +231,12 @@ function POSInterface({ user }) {
         customer_phone: '',
         customer_email: '',
         delivery_address: '',
-        delivery_lat: null,
-        delivery_lng: null,
         special_instructions: '',
         items: []
       });
     } catch (error) {
       console.error('Failed to create order:', error);
+      setSuccess(''); // Clear success message on error
     } finally {
       setLoading(false);
     }
@@ -330,7 +341,7 @@ function POSInterface({ user }) {
   );
 }
 
-// Admin Dashboard Component
+// Admin Dashboard Component - Simplified without Socket.IO
 function AdminDashboard({ user }) {
   const [orders, setOrders] = useState([]);
   const [selectedOrders, setSelectedOrders] = useState([]);
@@ -339,20 +350,6 @@ function AdminDashboard({ user }) {
 
   useEffect(() => {
     fetchOrders();
-    
-    // Listen for real-time updates
-    socket.on('new_order', (order) => {
-      setOrders(prev => [order, ...prev]);
-    });
-    
-    socket.on('order_delivered', (order) => {
-      setOrders(prev => prev.map(o => o.id === order.id ? order : o));
-    });
-
-    return () => {
-      socket.off('new_order');
-      socket.off('order_delivered');
-    };
   }, [filter]);
 
   const fetchOrders = async () => {
@@ -443,7 +440,7 @@ function AdminDashboard({ user }) {
                 <p><strong>Total:</strong> ${order.total_amount}</p>
                 <p><strong>Created:</strong> {new Date(order.created_at).toLocaleString()}</p>
                 
-                {order.items && (
+                {order.items && Array.isArray(order.items) && order.items.length > 0 && (
                   <div className="order-items">
                     <strong>Items:</strong>
                     {order.items.map((item, index) => (
@@ -462,37 +459,13 @@ function AdminDashboard({ user }) {
   );
 }
 
-// Driver App Component
+// Driver App Component - Simplified without Socket.IO
 function DriverApp({ user }) {
   const [routes, setRoutes] = useState([]);
-  const [currentLocation, setCurrentLocation] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetchRoutes();
-    
-    // Get current location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((position) => {
-        const location = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          driverId: user.id,
-          timestamp: new Date().toISOString()
-        };
-        setCurrentLocation(location);
-        socket.emit('location_update', location);
-      });
-    }
-
-    // Listen for route assignments
-    socket.on(`route_assigned_${user.id}`, (route) => {
-      setRoutes(prev => [route, ...prev]);
-    });
-
-    return () => {
-      socket.off(`route_assigned_${user.id}`);
-    };
   }, [user.id]);
 
   const fetchRoutes = async () => {
@@ -511,8 +484,6 @@ function DriverApp({ user }) {
     try {
       const deliveryData = {
         delivered_at: new Date().toISOString(),
-        proof_photo: 'base64_photo_data', // In production, capture photo
-        signature: 'base64_signature_data', // In production, capture signature
         notes: 'Delivered successfully'
       };
       
@@ -526,12 +497,6 @@ function DriverApp({ user }) {
   return (
     <div className="driver-app">
       <h2>Driver Dashboard - {user.name}</h2>
-      
-      {currentLocation && (
-        <div className="location-info">
-          Current Location: {currentLocation.lat.toFixed(4)}, {currentLocation.lng.toFixed(4)}
-        </div>
-      )}
 
       {loading ? (
         <div>Loading routes...</div>
@@ -551,7 +516,7 @@ function DriverApp({ user }) {
                     <p>Phone: {order.customer_phone}</p>
                     <p>Total: ${order.total_amount}</p>
                     
-                    {order.status === 'in_progress' && (
+                    {order.status === 'assigned' && (
                       <div className="delivery-actions">
                         <button onClick={() => confirmDelivery(order.id)}>
                           Confirm Delivery
@@ -573,24 +538,34 @@ function DriverApp({ user }) {
   );
 }
 
-// Main App Component
+// Main App Component - FIXED
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing token
+    // Check for existing token and validate it properly
     const token = localStorage.getItem('token');
     if (token) {
-      // In production, validate token with server
-      // For demo, assume valid and set mock user
-      const mockUser = { 
-        id: 1, 
-        email: 'user@logistics.com', 
-        name: 'Demo User', 
-        role: 'admin' 
-      };
-      setUser(mockUser);
+      // Try to parse the token to get user info
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.exp * 1000 > Date.now()) {
+          // Token is still valid
+          setUser({
+            id: payload.userId,
+            email: payload.email,
+            role: payload.role,
+            name: payload.email.split('@')[0] // Fallback name
+          });
+        } else {
+          // Token expired
+          localStorage.removeItem('token');
+        }
+      } catch (error) {
+        console.error('Invalid token:', error);
+        localStorage.removeItem('token');
+      }
     }
     setLoading(false);
   }, []);
@@ -602,11 +577,20 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     setUser(null);
-    socket.disconnect();
   };
 
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        fontSize: '18px'
+      }}>
+        Loading...
+      </div>
+    );
   }
 
   if (!user) {
@@ -626,6 +610,7 @@ function App() {
       <main className="app-main">
         {user.role === 'pos_operator' && <POSInterface user={user} />}
         {user.role === 'admin' && <AdminDashboard user={user} />}
+        {user.role === 'manager' && <AdminDashboard user={user} />}
         {user.role === 'driver' && <DriverApp user={user} />}
       </main>
     </div>
